@@ -5,7 +5,6 @@
     android:background="#1A1A1A"
     android:padding="16dp">
 
-    <!-- Header: Back + Title -->
     <RelativeLayout
         android:id="@+id/header"
         android:layout_width="match_parent"
@@ -35,7 +34,6 @@
             android:layout_centerVertical="true" />
     </RelativeLayout>
 
-    <!-- Clear History Button -->
     <Button
         android:id="@+id/btnClear"
         android:layout_width="wrap_content"
@@ -49,7 +47,6 @@
         android:layout_below="@id/header"
         android:layout_marginTop="8dp" />
 
-    <!-- Log List -->
     <ListView
         android:id="@+id/lvHistory"
         android:layout_width="match_parent"
@@ -59,7 +56,6 @@
         android:divider="#333333"
         android:dividerHeight="1dp" />
 
-    <!-- Empty text appears if the list is empty -->
     <TextView
         android:id="@+id/tvEmpty"
         android:layout_width="match_parent"

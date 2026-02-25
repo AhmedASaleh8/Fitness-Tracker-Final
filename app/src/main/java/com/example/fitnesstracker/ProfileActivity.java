@@ -1,11 +1,10 @@
 package com.example.fitnesstracker;
 
-import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -19,7 +18,14 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.fitnesstracker.utils.SessionManager;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
+
 import java.text.DecimalFormat;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ProfileActivity extends AppCompatActivity {
 
@@ -31,7 +37,11 @@ public class ProfileActivity extends AppCompatActivity {
     private RadioButton rbGain, rbLose, rbMaintain;
     private Spinner spWeeklyDays;
 
-    private SharedPreferences prefs;
+    private SessionManager session;
+    private FirebaseAuth mAuth;
+    private FirebaseFirestore db;
+    private String userId;
+
     private final DecimalFormat df1 = new DecimalFormat("#0.0");
 
     @Override
@@ -39,11 +49,24 @@ public class ProfileActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_profile);
 
-        prefs = getSharedPreferences("settings", MODE_PRIVATE);
+        // تهيئة Firebase
+        mAuth = FirebaseAuth.getInstance();
+        db = FirebaseFirestore.getInstance();
+        session = new SessionManager(this);
+
+        // الحصول على user ID
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+        if (currentUser != null) {
+            userId = currentUser.getUid();
+        } else {
+            Toast.makeText(this, "Please login first", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
 
         initViews();
         setupWeeklyDaysSpinner();
-        loadSavedData();
+        loadUserDataFromFirestore();
         setListeners();
     }
 
@@ -78,31 +101,45 @@ public class ProfileActivity extends AppCompatActivity {
         spWeeklyDays.setAdapter(adapter);
     }
 
-    private void loadSavedData() {
-        // Display name
-        String name = prefs.getString("display_name", "");
-        tvDisplayName.setText(name.isEmpty() ? "Athlete" : name);
+    private void loadUserDataFromFirestore() {
+        db.collection("users").document(userId)
+                .get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
 
-        // Metrics
-        double h = parseDouble(prefs.getString("height_cm", ""), 0);
-        double w = parseDouble(prefs.getString("weight_kg", ""), 0);
-        if (h > 0) etHeight.setText(trimZero(h));
-        if (w > 0) etWeight.setText(trimZero(w));
-        updateBMIViews(h, w);
+                        String name = documentSnapshot.getString("name");
+                        tvDisplayName.setText(name != null && !name.isEmpty() ? name : "Athlete");
 
-        // Goal
-        String goal = prefs.getString("primary_goal", "maintain");
-        switch (goal) {
-            case "gain": rbGain.setChecked(true); break;
-            case "lose": rbLose.setChecked(true); break;
-            default: rbMaintain.setChecked(true);
-        }
-        double targetW = parseDouble(prefs.getString("target_weight", ""), 0);
-        if (targetW > 0) etTargetWeight.setText(trimZero(targetW));
+                        Double height = documentSnapshot.getDouble("height");
+                        Double weight = documentSnapshot.getDouble("weight");
 
-        int weekly = prefs.getInt("weekly_goal_days", 3);
-        int pos = Math.min(Math.max(weekly, 1), 6) - 1;
-        spWeeklyDays.setSelection(pos);
+                        if (height != null && height > 0) {
+                            etHeight.setText(trimZero(height));
+                        }
+                        if (weight != null && weight > 0) {
+                            etWeight.setText(trimZero(weight));
+                        }
+
+                        updateBMIViews(height != null ? height : 0, weight != null ? weight : 0);
+
+                        // عرض الهدف
+                        String goal = documentSnapshot.getString("goal");
+                        if (goal == null) goal = "maintain";
+                        switch (goal) {
+                            case "gain": rbGain.setChecked(true); break;
+                            case "lose": rbLose.setChecked(true); break;
+                            default: rbMaintain.setChecked(true);
+                        }
+
+                        Long weekly = documentSnapshot.getLong("weeklyGoalDays");
+                        int weeklyDays = weekly != null ? weekly.intValue() : 3;
+                        int pos = Math.min(Math.max(weeklyDays, 1), 6) - 1;
+                        spWeeklyDays.setSelection(pos);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Failed to load data: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
     }
 
     private void setListeners() {
@@ -110,7 +147,6 @@ public class ProfileActivity extends AppCompatActivity {
 
         btnEditName.setOnClickListener(v -> showEditNameDialog());
 
-        // Recalculate BMI as user types
         TextWatcher watcher = new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
@@ -123,70 +159,117 @@ public class ProfileActivity extends AppCompatActivity {
         etHeight.addTextChangedListener(watcher);
         etWeight.addTextChangedListener(watcher);
 
-        btnSaveMetrics.setOnClickListener(v -> {
-            double h = parseDouble(etHeight.getText().toString().trim(), 0);
-            double w = parseDouble(etWeight.getText().toString().trim(), 0);
+        btnSaveMetrics.setOnClickListener(v -> saveMetrics());
 
-            if (h <= 0 || w <= 0) {
-                Toast.makeText(this, "Please enter valid height and weight", Toast.LENGTH_SHORT).show();
-                return;
-            }
+        btnSaveGoal.setOnClickListener(v -> saveGoal());
 
-            double bmi = calcBMI(h, w);
-            String cls = bmiClass(bmi);
-
-            prefs.edit()
-                    .putString("height_cm", trimZero(h))
-                    .putString("weight_kg", trimZero(w))
-                    .putString("bmi_value", df1.format(bmi))
-                    .putString("bmi_class", cls)
-                    .apply();
-
-            Toast.makeText(this, "Metrics saved", Toast.LENGTH_SHORT).show();
+        btnStartArms.setOnClickListener(v -> {
+            Intent intent = new Intent(this, ExerciseListActivity.class);
+            intent.putExtra("category_name", "Arms");
+            intent.putExtra("category_type", "body_part");
+            intent.putExtra("filter_value", "Arms");
+            startActivity(intent);
         });
 
-        btnSaveGoal.setOnClickListener(v -> {
-            String goal = "maintain";
-            int checked = rgGoal.getCheckedRadioButtonId();
-            if (checked == R.id.rbGain) goal = "gain";
-            else if (checked == R.id.rbLose) goal = "lose";
-
-            double target = parseDouble(etTargetWeight.getText().toString().trim(), 0);
-            int weekly = Integer.parseInt(spWeeklyDays.getSelectedItem().toString());
-
-            SharedPreferences.Editor ed = prefs.edit()
-                    .putString("primary_goal", goal)
-                    .putInt("weekly_goal_days", weekly);
-
-            if (target > 0) ed.putString("target_weight", trimZero(target)); else ed.remove("target_weight");
-            ed.apply();
-
-            Toast.makeText(this, "Goal saved", Toast.LENGTH_SHORT).show();
+        btnStartLegs.setOnClickListener(v -> {
+            Intent intent = new Intent(this, ExerciseListActivity.class);
+            intent.putExtra("category_name", "Legs");
+            intent.putExtra("category_type", "body_part");
+            intent.putExtra("filter_value", "Legs");
+            startActivity(intent);
         });
 
-        btnStartArms.setOnClickListener(v -> startActivity(new Intent(this, ArmTrainingActivity.class)));
-        btnStartLegs.setOnClickListener(v -> startActivity(new Intent(this, LegTrainingActivity.class)));
-        btnStartCore.setOnClickListener(v -> startActivity(new Intent(this, CoreTrainingActivity.class)));
+        btnStartCore.setOnClickListener(v -> {
+            Intent intent = new Intent(this, ExerciseListActivity.class);
+            intent.putExtra("category_name", "Abs");
+            intent.putExtra("category_type", "body_part");
+            intent.putExtra("filter_value", "Abs");
+            startActivity(intent);
+        });
     }
 
     private void showEditNameDialog() {
         final EditText input = new EditText(this);
         input.setHint("Enter your name");
-        input.setText(tvDisplayName.getText().toString().equals("Athlete") ? "" : tvDisplayName.getText().toString());
+        input.setText(tvDisplayName.getText().toString());
         input.setPadding(24, 24, 24, 24);
 
         new AlertDialog.Builder(this)
                 .setTitle("Edit Name")
                 .setView(input)
-                .setPositiveButton("Save", (DialogInterface dialog, int which) -> {
+                .setPositiveButton("Save", (dialog, which) -> {
                     String name = input.getText().toString().trim();
                     if (name.isEmpty()) name = "Athlete";
-                    tvDisplayName.setText(name);
-                    prefs.edit().putString("display_name", name).apply();
-                    Toast.makeText(this, "Name updated", Toast.LENGTH_SHORT).show();
+
+                    final String finalName = name;
+
+                    // حفظ في Firestore
+                    Map<String, Object> updates = new HashMap<>();
+                    updates.put("name", finalName);
+
+                    db.collection("users").document(userId)
+                            .update(updates)
+                            .addOnSuccessListener(aVoid -> {
+                                tvDisplayName.setText(finalName);
+                                session.createLoginSession(0, finalName, session.getUserEmail());
+                                Toast.makeText(ProfileActivity.this, "Name updated", Toast.LENGTH_SHORT).show();
+                            })
+                            .addOnFailureListener(e -> {
+                                Toast.makeText(ProfileActivity.this, "Failed to update: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            });
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    private void saveMetrics() {
+        double h = parseDouble(etHeight.getText().toString().trim(), 0);
+        double w = parseDouble(etWeight.getText().toString().trim(), 0);
+
+        if (h <= 0 || w <= 0) {
+            Toast.makeText(this, "Please enter valid height and weight", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        double bmi = calcBMI(h, w);
+
+        // حفظ في Firestore
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("height", h);
+        updates.put("weight", w);
+        updates.put("bmi", bmi);
+
+        db.collection("users").document(userId)
+                .update(updates)
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, "Metrics saved", Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Failed to save: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void saveGoal() {
+        String goal = "maintain";
+        int checked = rgGoal.getCheckedRadioButtonId();
+        if (checked == R.id.rbGain) goal = "gain";
+        else if (checked == R.id.rbLose) goal = "lose";
+
+        int weekly = Integer.parseInt(spWeeklyDays.getSelectedItem().toString());
+
+        // حفظ في Firestore
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("goal", goal);
+        updates.put("weeklyGoalDays", weekly);
+
+        db.collection("users").document(userId)
+                .update(updates)
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, "Goal saved", Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Failed to save: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
     }
 
     private void updateBMIViews(double heightCm, double weightKg) {
@@ -225,7 +308,6 @@ public class ProfileActivity extends AppCompatActivity {
     }
 
     private String trimZero(double v) {
-        // convert 70.0 -> "70", 70.5 -> "70.5"
         if (Math.floor(v) == v) return String.valueOf((long) v);
         return df1.format(v);
     }

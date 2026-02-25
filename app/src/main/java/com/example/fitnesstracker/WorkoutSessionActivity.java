@@ -12,9 +12,18 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.fitnesstracker.database.DatabaseHelper;
+import com.example.fitnesstracker.models.Workout;
+import com.example.fitnesstracker.utils.SessionManager;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 public class WorkoutSessionActivity extends AppCompatActivity {
 
@@ -28,15 +37,11 @@ public class WorkoutSessionActivity extends AppCompatActivity {
     private String sessionType = "arm";
     private String sessionTitle = "Workout Session";
 
-    // Exercise names visible to the user
     private final String[] armList  = {"Push-Ups", "Diamond Push-Ups", "Triceps Dips"};
     private final String[] legList  = {"Squats", "Lunges", "Calf Raises"};
     private final String[] coreList = {"Sit-Ups", "Plank", "Bicycle Crunches"};
     private String[] list = armList;
 
-    // arms: pushup, diamond_pushup, dips
-    // legs: squat, lunge, calf_raise
-    // core: situp, plank, bicycle_crunches
     private final int[] armDrawables  = {
             R.drawable.pushup,
             R.drawable.diamond_pushup,
@@ -53,19 +58,34 @@ public class WorkoutSessionActivity extends AppCompatActivity {
             R.drawable.bicycle_crunches
     };
 
-    private int totalExercises = 1;     // Set from SharedPreferences(1..3)
+    private int totalExercises = 1;
     private int exerciseIndex = 0;
 
-    // minutes/workout (1 or 3 or 5) -> milliseconds
     private long timePerExerciseMs = 3 * 60_000L;
     private long timeLeftMs = timePerExerciseMs;
 
     private boolean savedHistory = false;
 
+    private DatabaseHelper db;
+    private SessionManager session;
+    private FirebaseAuth mAuth;
+    private FirebaseFirestore firestore;
+    private String userId;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_workout_session);
+
+        db = new DatabaseHelper(this);
+        session = new SessionManager(this);
+        mAuth = FirebaseAuth.getInstance();
+        firestore = FirebaseFirestore.getInstance();
+
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+        if (currentUser != null) {
+            userId = currentUser.getUid();
+        }
 
         readIntent();
         mapViews();
@@ -121,12 +141,11 @@ public class WorkoutSessionActivity extends AppCompatActivity {
         } else if ("core".equals(sessionType)) {
             count   = wp.getInt("core_exercises", defCount);
             minutes = wp.getInt("core_minutes",   defMins);
-        } else { // arm
+        } else {
             count   = wp.getInt("arm_exercises",  defCount);
             minutes = wp.getInt("arm_minutes",    defMins);
         }
 
-        // الحدود النهائية المتفق عليها
         totalExercises = Math.max(1, Math.min(3, count));
         if (minutes != 1 && minutes != 3 && minutes != 5) minutes = defMins;
 
@@ -140,8 +159,7 @@ public class WorkoutSessionActivity extends AppCompatActivity {
         tvTimer.setText(formatTime(timeLeftMs));
         btnStartPause.setText(isRunning ? "Pause" : "Start");
 
-// The image that matches the current exercise based on type and index
-    ivExerciseImage.setImageResource(getCurrentDrawable(exerciseIndex));
+        ivExerciseImage.setImageResource(getCurrentDrawable(exerciseIndex));
     }
 
     private int getCurrentDrawable(int idx) {
@@ -199,7 +217,7 @@ public class WorkoutSessionActivity extends AppCompatActivity {
         if (exerciseIndex < totalExercises - 1) {
             exerciseIndex++;
             timeLeftMs = timePerExerciseMs;
-            bindUI(); // Updates name, counter, and image
+            bindUI();
         } else {
             showFinishDialog();
         }
@@ -230,12 +248,35 @@ public class WorkoutSessionActivity extends AppCompatActivity {
 
         int minutesPerExercise = (int) (timePerExerciseMs / 60000L);
         String stamp = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(new Date());
-        String line = stamp + " • " + sessionTitle + " • " + totalExercises + " ex • " + minutesPerExercise + " min/ex";
 
-        SharedPreferences sp = getSharedPreferences("history", MODE_PRIVATE);
-        String old = sp.getString("workout_log", "");
-        String now = old.isEmpty() ? line : (line + "\n" + old);
-        sp.edit().putString("workout_log", now).apply();
+        Workout workout = new Workout();
+        workout.setUserId(session.getUserId());
+        workout.setType(sessionType);
+        workout.setDuration(minutesPerExercise);
+        workout.setDate(stamp);
+
+        db.addWorkout(workout);
+
+        if (userId != null) {
+            Map<String, Object> workoutData = new HashMap<>();
+            workoutData.put("type", sessionType);
+            workoutData.put("exercisesCount", totalExercises);
+            workoutData.put("durationMinutes", minutesPerExercise);
+            workoutData.put("date", stamp);
+            workoutData.put("timestamp", System.currentTimeMillis());
+
+            firestore.collection("users")
+                    .document(userId)
+                    .collection("workouts")
+                    .add(workoutData)
+                    .addOnSuccessListener(documentReference -> {
+
+                    })
+                    .addOnFailureListener(e -> {
+                    });
+        }
+
+        Toast.makeText(this, "Workout saved!", Toast.LENGTH_SHORT).show();
     }
 
     private void finishSafely() {

@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#1A1A1A"
-    tools:context=".CoreTrainingActivity">
+    tools:context=".ExerciseDetailActivity">
 
     <ImageView
         android:id="@+id/btn_back"
@@ -22,7 +22,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="25dp"
-        android:text="Core Training"
+        android:text="Exercise Details"
         android:textColor="#FF8500"
         android:textSize="30sp"
         android:textStyle="bold"
@@ -36,7 +36,7 @@
         android:layout_height="220dp"
         android:layout_marginHorizontal="30dp"
         android:layout_marginTop="40dp"
-        android:src="@drawable/situp"
+        android:src="@drawable/pushup"
         android:scaleType="centerCrop"
         android:background="#2D2D2D"
         android:layout_below="@id/tv_title" />
@@ -64,7 +64,7 @@
                 android:id="@+id/tv_exercises_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="2"
+                android:text="1"
                 android:textColor="#FF8500"
                 android:textSize="24sp"
                 android:textStyle="bold" />
@@ -72,9 +72,10 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Exercises"
+                android:text="Sets"
                 android:textColor="#CCCCCC"
                 android:textSize="14sp" />
+
         </LinearLayout>
 
         <View
@@ -93,7 +94,7 @@
                 android:id="@+id/tv_minutes_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="30"
+                android:text="3"
                 android:textColor="#FF8500"
                 android:textSize="24sp"
                 android:textStyle="bold" />
@@ -104,6 +105,7 @@
                 android:text="Minutes"
                 android:textColor="#CCCCCC"
                 android:textSize="14sp" />
+
         </LinearLayout>
 
         <View
@@ -133,7 +135,9 @@
                 android:text="Medium"
                 android:textColor="#CCCCCC"
                 android:textSize="14sp" />
+
         </LinearLayout>
+
     </LinearLayout>
 
     <ScrollView
@@ -150,10 +154,11 @@
             android:id="@+id/tv_description"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="How Sit-up Works:\n 1.Lie on your back: Bend your knees and keep your feet on the floor .\n\n 2.Place your hands: Behind your head or on your chest .\n\n 3. Sit up: Lift your chest toward your knees using your abs . \n\n 4. Lower down: Slowly return until your back touches the floor . \n\n 5. Repeat: 10–20 times for 3–4 sets."
+            android:text="Exercise description will appear here"
             android:textColor="#FFC107"
             android:textSize="14sp"
             android:lineSpacingExtra="6dp" />
+
     </ScrollView>
 
     <Button

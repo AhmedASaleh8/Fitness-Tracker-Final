@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "137488483583",
+    "project_id": "fitness-tracker-9bc44",
+    "storage_bucket": "fitness-tracker-9bc44.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:137488483583:android:1168abbaa8001fe4ff78ca",
+        "android_client_info": {
+          "package_name": "com.example.fitnesstracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDffWZzK0xSuZ5XkoazM3RGWKh_qcoChfQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

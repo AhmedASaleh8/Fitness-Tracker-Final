@@ -2,7 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
+        android:name=".api.AppController"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -13,62 +17,39 @@
         android:theme="@style/Theme.FitnessTracker"
         tools:targetApi="31">
 
-        <!-- Launcher / Splash -->
         <activity
             android:name=".SplashActivity"
             android:exported="true"
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+            android:theme="@style/Theme.AppCompat.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- Home -->
+        <activity android:name=".LoginActivity"
+            android:theme="@style/Theme.AppCompat.NoActionBar"/>
+        <activity android:name=".RegisterActivity"
+            android:theme="@style/Theme.AppCompat.NoActionBar"/>
+        <activity android:name=".MainActivity" />
+        <activity android:name=".ProfileActivity" />
+        <activity android:name=".SettingsActivity" />
+        <activity android:name=".HistoryActivity" />
+        <activity android:name=".WorkoutSessionActivity" />
+        <activity android:name=".AboutActivity" />
+        <activity android:name=".TestApiActivity" />
         <activity
-            android:name=".MainActivity"
-            android:exported="false" />
-
-        <!-- Auth -->
-        <activity
-            android:name=".LoginActivity"
-            android:exported="false" />
-        <activity
-            android:name=".RegisterActivity"
-            android:exported="false" />
-
-        <!-- Training screens -->
-        <activity
-            android:name=".ArmTrainingActivity"
+            android:name=".CategoriesActivity"
+            android:screenOrientation="portrait"
             android:exported="false" />
         <activity
-            android:name=".LegTrainingActivity"
+            android:name=".ExerciseListActivity"
+            android:screenOrientation="portrait"
             android:exported="false" />
         <activity
-            android:name=".CoreTrainingActivity"
+            android:name=".ExerciseDetailActivity"
+            android:screenOrientation="portrait"
             android:exported="false" />
-
-        <!-- Workout session (timer) -->
-        <activity
-            android:name=".WorkoutSessionActivity"
-            android:exported="false" />
-
-        <!-- Settings / Profile / About -->
-        <activity
-            android:name=".SettingsActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ProfileActivity"
-            android:exported="false" />
-        <activity
-            android:name=".AboutActivity"
-            android:exported="false" />
-
-        <!-- History (workout log) -->
-        <activity
-            android:name=".HistoryActivity"
-            android:exported="false" />
-
     </application>
 
 </manifest>

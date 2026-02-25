@@ -14,6 +14,14 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 
+import com.example.fitnesstracker.utils.SessionManager;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.HashMap;
+import java.util.Map;
+
 public class SettingsActivity extends AppCompatActivity {
 
     private ImageView btn_back;
@@ -25,6 +33,10 @@ public class SettingsActivity extends AppCompatActivity {
     private RadioButton rbArabic, rbEnglish;
 
     private SharedPreferences prefs;
+    private SessionManager session;
+    private FirebaseAuth mAuth;
+    private FirebaseFirestore db;
+    private String userId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,6 +44,16 @@ public class SettingsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_settings);
 
         prefs = getSharedPreferences("settings", MODE_PRIVATE);
+        session = new SessionManager(this);
+
+        // تهيئة Firebase
+        mAuth = FirebaseAuth.getInstance();
+        db = FirebaseFirestore.getInstance();
+
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+        if (currentUser != null) {
+            userId = currentUser.getUid();
+        }
 
         initViews();
         loadSavedSettings();
@@ -54,29 +76,53 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void loadSavedSettings() {
-        // Name
-        etDisplayName.setText(prefs.getString("display_name", ""));
+        if (userId != null) {
+            db.collection("users").document(userId)
+                    .get()
+                    .addOnSuccessListener(documentSnapshot -> {
+                        if (documentSnapshot.exists()) {
+                            String name = documentSnapshot.getString("name");
+                            etDisplayName.setText(name != null ? name : "");
+                        }
+                    });
+        }
 
-        //  Dark Mode
         boolean dark = prefs.getBoolean("dark_mode", false);
         swDarkMode.setChecked(dark);
         AppCompatDelegate.setDefaultNightMode(
                 dark ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO
         );
 
-        // language
         String lang = prefs.getString("language", "ar");
         if ("ar".equals(lang)) rbArabic.setChecked(true); else rbEnglish.setChecked(true);
     }
 
     private void setListeners() {
 
-        // Back button
         btn_back.setOnClickListener(v -> finish());
+
         btnSaveName.setOnClickListener(v -> {
             String name = etDisplayName.getText().toString().trim();
-            prefs.edit().putString("display_name", name).apply();
-            Toast.makeText(this, "Name saved", Toast.LENGTH_SHORT).show();
+            if (name.isEmpty()) {
+                Toast.makeText(this, "Name cannot be empty", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // حفظ في Firestore
+            if (userId != null) {
+                Map<String, Object> updates = new HashMap<>();
+                updates.put("name", name);
+
+                db.collection("users").document(userId)
+                        .update(updates)
+                        .addOnSuccessListener(aVoid -> {
+                            session.createLoginSession(0, name, session.getUserEmail());
+                            Toast.makeText(this, "Name saved", Toast.LENGTH_SHORT).show();
+                        })
+                        .addOnFailureListener(e -> {
+                            Toast.makeText(this, "Failed to save: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        });
+            }
         });
 
         swDarkMode.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -98,10 +144,17 @@ public class SettingsActivity extends AppCompatActivity {
         });
 
         btnLogout.setOnClickListener(v -> {
+            mAuth.signOut();
+
+            session.logout();
+
+            // الذهاب لصفحة Login
             Intent i = new Intent(SettingsActivity.this, LoginActivity.class);
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(i);
             finish();
+
+            Toast.makeText(SettingsActivity.this, "Logged out successfully", Toast.LENGTH_SHORT).show();
         });
     }
 }
